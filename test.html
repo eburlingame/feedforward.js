@@ -1,0 +1,33 @@
+<html>
+<head>
+	<script type="text/javascript" src="math.js"></script>
+	<script type="text/javascript" src="netclass.js"></script>
+</head>
+<body>
+<div id='output'></div>
+</body>
+<script type="text/javascript">
+	var out = document.getElementById("output");
+
+	var dim = [2, 3, 1];
+	var net = new Network(dim);
+	console.log(net.layers);
+
+	var training_data =  
+	[ //  	Inputs, 	outputs
+		[ 	[0, 0], 	[1] 	],
+		[ 	[1, 0], 	[0] 	],
+		[ 	[0, 1], 	[1] 	],
+		[ 	[1, 1], 	[0] 	],
+	];
+	net.train(training_data, 1000, 4, 0.5, training_data);
+
+
+	console.log(net.feedForward([0, 0]));
+	console.log(net.feedForward([1, 0]));
+	console.log(net.feedForward([0, 1]));
+	console.log(net.feedForward([1, 1]));
+
+
+</script>
+</html>
