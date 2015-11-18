@@ -4,3 +4,9 @@ neuraljs.sublime-project
 neuraljs.sublime-workspace
 qunit.css
 qunit.js
+node_modules/
+sublime/
+scripts/.idea/
+data/
+scripts/mnist.pkl.gz
+scripts/data.json

@@ -1,0 +1,1 @@
+[{"middleLayerNeurons":30,"epochs":10,"batchSize":30,"learningRate":40,"correctPerEpoch":[2793,2819,2830,2830,2826,2845,2834,2828,2845,2835],"totalPatterns":5001},{"middleLayerNeurons":30,"epochs":10,"batchSize":100,"learningRate":40,"correctPerEpoch":[3504,3511,3508,3512,3511,3508,3511,3511,3512,3514],"totalPatterns":5001}]

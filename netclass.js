@@ -1,4 +1,3 @@
-
 // Represents a single neuron with the weights leading to it 
 // Pass in the number of neurons in the previous layer or the number
 // of inputs for the first layer
@@ -11,6 +10,22 @@ function Neuron(previousCount)
 	for (var i = 0; i < previousCount; i++)
 	{
 		this.weights[i] = randNorm();
+	}
+
+	this.toObject = function()
+	{
+		return {
+			bias: 		this.bias,
+			weights: 	this.weights,
+		};
+	}
+
+	// Takes a simple javascript object and generate the correct
+	// network from it
+	this.fromObject = function(obj)
+	{
+		this.bias = obj.bias;
+		this.weights = obj.weights;
 	}
 
 	this.calculateZ = function(lastLayerActivations)
@@ -43,14 +58,14 @@ function Neuron(previousCount)
 		return partPrevDelta;
 	}
 
-	this.applyDeltas = function(previousActivations, delta, eta)
+	this.applyDeltas = function(previousActivations, delta, eta, batchSize)
 	{
 		var nablaB = delta; // Calculate dC/db
-		this.bias -= eta * nablaB; // Update the neuron's bias from the delta
+		this.bias -= ( eta / batchSize ) * nablaB; // Update the neuron's bias from the delta
 		for (var i = 0; i < this.weights.length; i++)
 		{
 			var nablaW = previousActivations[i] * delta;  // Calculate dC/dw
-			this.weights[i] -= eta * nablaW; // Update the neuron's proceeding bias 
+			this.weights[i] -= ( eta / batchSize ) * nablaW; // Update the neuron's proceeding bias 
 		}
 	}
 }
@@ -66,6 +81,30 @@ function Layer(neuronCount, previousCount)
 	for (var i = 0; i < neuronCount; i++)
 	{
 		this.neurons.push(new Neuron(previousCount));
+	}
+
+	this.toObject = function()
+	{
+		var obj = {};
+		obj.neurons = [];
+		for (var i = 0; i < this.neurons.length; i++)
+		{
+			obj.neurons[i] = this.neurons[i].toObject();		
+		}
+		return obj;
+	}
+
+	// Takes a simple javascript object and generate the correct
+	// network from it
+	this.fromObject = function(obj)
+	{
+		this.neurons = [];
+		for (var i = 0; i < obj.neurons.length; i++)
+		{
+			var neuron = obj.neurons[i];
+			this.neurons[i] = new Neuron(0);
+			this.neurons[i].fromObject(neuron);
+		}
 	}
 	
 	this.getActivationArray = function(input)
@@ -125,12 +164,12 @@ function Layer(neuronCount, previousCount)
 		return prevDeltas;
 	}
 
-	this.applyDeltas = function(previousActivations, deltas, eta)
+	this.applyDeltas = function(previousActivations, deltas, eta, batchSize)
 	{
 		// For each neuron
 		for (var i = 0; i < this.neurons.length; i++)
 		{
-			this.neurons[i].applyDeltas(previousActivations, deltas[i], eta);
+			this.neurons[i].applyDeltas(previousActivations, deltas[i], eta, batchSize);
 		}
 	}
 }
@@ -149,6 +188,41 @@ function Network(size)
 		this.layers.push(layer);
 	}
 
+	// Returns a standard javascript object with the necessary values
+	// to write the network to a file
+	this.toObject = function()
+	{
+		var obj = {};
+		obj.layers = [];
+		for (var i = 0; i < this.layers.length; i++)
+		{
+			obj.layers[i] = this.layers[i].toObject();		
+		}
+		return obj;
+	}
+
+	// Takes a simple javascript object and generate the correct
+	// network from it
+	this.fromObject = function(obj)
+	{
+		this.layers = [];
+		for (var i = 0; i < obj.layers.length; i++)
+		{
+			var layer = obj.layers[i];
+			this.layers[i] = new Layer(0);
+			this.layers[i].fromObject(layer);
+		}
+	}
+
+	// Feeds the input through the network and returns the 
+	// ID (location) of the final-layer neuron that had the
+	// maximum activation 
+	this.evaluateMaxLastNeuron = function(input)
+	{
+		var result = this.feedForward(input);
+		return arrMaxLoc(result);
+	}
+
 	// Pass in data to feed forward through the network
 	// Takes an array of input matching in length to the first layer
 	// Returns the activation array from the last layer
@@ -162,6 +236,8 @@ function Network(size)
 		return input;
 	}
 
+	// Same as feedforwad, but returns the unactivated Z-values for
+	// the final layer
 	this.feedForwardZ = function(input)
 	{
 		// Go forward through the tree
@@ -177,43 +253,76 @@ function Network(size)
 
 	this.train = function (data, epochs, batchSize, eta, testData)
 	{
+		var corrects = [];
 		var n = data.length;
+		data = shuffle(data); // Shuffle the data
 		// For each epoch
 		for (var j = 0; j < epochs; j++)
 		{
 			// For each mini batch
-			for (var k = 0; k < batchSize; k++)
+			for (var k = 0; k < data.length; k += batchSize)
 			{
-				var batch = getRandomSet(data, batchSize);
+				var batch = data.slice(k, k + batchSize); // Take this batch chunk
 				this.trainBatch(batch, eta);
 			}
 			// Test the data at the end of the epoch
 			if (testData)
 			{
 				var correct = this.testData(testData);
-				console.log("Epoch " + j + " is complete. " + correct + " / " + testData.length + " correct");
+				var percent = correct/testData.length * 100; 
+				console.log("Epoch " + j + " is complete. " + correct + " / " + testData.length + " correct (" + percent + "%)");
+				corrects.push(correct);
 			}
 			else
 			{
 				console.log("Epoch " + j + " is complete");
 			}
 		}
+		return corrects;
 	}
 
 	this.testData = function(testData)
 	{
 		var correct = 0;
+		var costSum = 0;
 		for (var i = 0; i < testData.length; i++)
 		{
 			var result = this.feedForward(testData[i][0]);
-			var diff = math.add ( result, math.multiply(-1, testData[i][1]) );
-			diff = math.abs(diff);
-			if (diff < 0.5)
+			var score = this.score(result, testData[i][1]);
+			if (score > 0)
 			{
 				correct++;
 			}
+			costSum += sumCost(result, testData[i][1]);
 		}
+		console.log("Averate cost: " + costSum / testData.length)
 		return correct;
+	}
+
+	this.score = function(output, testData)
+	{
+		var outputMaxLoc = 0;
+		var desiredMaxLoc = 0; 
+		for (var i = 0; i < output.length; i++)
+		{
+			// Find the location of the maximum in the output array
+			if (output[i] > output[outputMaxLoc] )
+			{
+				outputMaxLoc = i;
+			}
+
+			// Find the location of the maximum in the desired output array
+			if (testData[i] > testData[desiredMaxLoc] )
+			{
+				desiredMaxLoc = i;
+			}
+		}
+		// If the maximums match
+		if (desiredMaxLoc == outputMaxLoc)
+		{
+			return 1;
+		}
+		return 0;
 	}
 
 	this.trainBatch = function(batch, eta)
@@ -225,7 +334,7 @@ function Network(size)
 			var input = batch[i][0]; // 0th element is input
 			var output = batch[i][1]; // 1st element is output
 
-			this.backprop(input, output, eta);
+			this.backprop(input, output, eta, batch.length);
 			var calculatedOutput = this.feedForward(input);
 			cost += sumCost(calculatedOutput, output);
 		}
@@ -233,7 +342,7 @@ function Network(size)
 		// console.log("Cost " + cost);
 	}
 
-	this.backprop = function(input, output, eta)
+	this.backprop = function(input, output, eta, batchSize)
 	{
 		var activations = []; // Holds the activations, layer by layer
 		var zs = []; // Holds the zs, layer by layer
@@ -266,7 +375,7 @@ function Network(size)
 		for (var i = 0; i < this.layers.length; i++)
 		{
 			// Apply the delta for this layer
-			this.layers[i].applyDeltas(previousActivations, deltas[i], eta);
+			this.layers[i].applyDeltas(previousActivations, deltas[i], eta, batchSize);
 
 			// Set previous activations to the activations of this layer for
 			// the next iteration
@@ -290,7 +399,6 @@ function Network(size)
 
 
 // Helper math functions: 
-
 function sumCost(output, y)
 {
 	var sum = 0;
@@ -320,6 +428,38 @@ function getRandomSet(arr, numberOfElements)
 	return elements;
 }
 
+function shuffle(array) 
+{
+  var currentIndex = array.length, temporaryValue, randomIndex ;
+
+  // While there remain elements to shuffle...
+  while (0 !== currentIndex) {
+
+    // Pick a remaining element...
+    randomIndex = Math.floor(Math.random() * currentIndex);
+    currentIndex -= 1;
+
+    // And swap it with the current element.
+    temporaryValue = array[currentIndex];
+    array[currentIndex] = array[randomIndex];
+    array[randomIndex] = temporaryValue;
+  }
+
+  return array;
+}
+
+function arrMaxLoc(arr)
+{
+	var maxLoc = 0;
+	for (var i = 0; i < arr.length; i++)
+	{
+		if (arr[i] > arr[maxLoc])
+		{
+			maxLoc = i;
+		}
+	}
+	return maxLoc;
+}
 
 function sigmoid(z)
 {
@@ -335,3 +475,4 @@ function randNorm()
 {
     return ((Math.random() + Math.random() + Math.random() + Math.random() + Math.random() + Math.random()) - 3) / 3;
 }
+
