@@ -1,6 +1,5 @@
 # feedforward.js
-<<<<<<< HEAD
-=======
 
->>>>>>> bf85d38496a4cd9badf94a62e5b2f87f4ea43f41
-An implementation of a feed-forward neural network with a backpropigation training algorithm. 
+An implementation of a feed-forward neural network with a backpropigation training algorithm in JavaScript.
+
+Includes scripts to convert NMIST handwriting digit data to JSON, and a small HTML demo of the network using a pretrained network. 
